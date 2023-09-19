@@ -1,0 +1,4 @@
+$LocalPackagesFolder = "$env:LOCALAPPDATA\Packages"
+$AADBrokerFolder = Get-ChildItem -Path $LocalPackagesFolder -Recurse -Include "Microsoft.AAD.BrokerPlugin_*";
+$AADBrokerFolder = $AADBrokerFolder[0];
+Get-ChildItem "$AADBrokerFolder\AC\TokenBroker\Accounts" | Remove-Item -Recurse -Force
