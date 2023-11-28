@@ -1,79 +1,98 @@
-# Stop Teams process 
-Get-Process -ProcessName Teams -ErrorAction SilentlyContinue | Stop-Process -Force 
+# Parameter
+OfficeProzesse = @(
+    "Teams", "Outlook", "WinWord", "Excel", "Powerpoint", "OneDrive", "OneNote", "OneNoteM"
+)
+$TeamsOrdner = "$env:APPDATA\Microsoft\Teams"
+
+# Hauptmenü
+$cache = [System.Management.Automation.Host.ChoiceDescription]::new('&Cache', 'Nur Cache wird gelöscht')
+$alles = [System.Management.Automation.Host.ChoiceDescription]::new('&Alles (Cache & Anmeldeinformationen)', 'Cache und Anmeldeinformationen werden gelöscht!')
+$nichts = [System.Management.Automation.Host.ChoiceDescription]::new('&Nichts', 'Skript wird abgebrochen!')
+$antworten = [System.Management.Automation.Host.ChoiceDescription[]]($cache, $alles, $nichts)
+$titel = "Was soll bereinigt werden?"
+$nachricht = "`nIm Zweifelsfall erst nur den Cache,`nansonsten mit Option Alles nochmal ausführen!"
+
+$ergebnis = $host.ui.PromptForChoice($titel, $nachricht, $antworten, 2)
+Clear-Host
+
+if ($ergebnis -eq 0) { 
+    Close-OfficeProzesse
+    Remove-TeamsCache
+    
+    Clear-Host
+    Write-Host "Ausführung abgeschlossen!"
+}
+elseif ($ergebnis -eq 1) {
+    Close-OfficeProzesse
+    Remove-TeamsCache
+    Remove-Rest
+
+    Clear-Host
+    Write-Host "Ausführung abgeschlossen!"
+}
+else {
+    Write-Host "Ausführung vom Nutzer abgebrochen!"
+}
 Start-Sleep -Seconds 3
-Write-Host "Microsoft Teams process sucessfully stopped" 
+Clear-Host
+Exit
 
-# Clear Teams Cache
-try {
-    Get-ChildItem -Path $env:APPDATA\"Microsoft\Teams\blob_storage" | Remove-Item -Recurse -ErrorAction SilentlyContinue
-    Get-ChildItem -Path $env:APPDATA\"Microsoft\Teams\databases" | Remove-Item -Recurse -ErrorAction SilentlyContinue
-    Get-ChildItem -Path $env:APPDATA\"Microsoft\Teams\cache" | Remove-Item -Recurse -ErrorAction SilentlyContinue
-    Get-ChildItem -Path $env:APPDATA\"Microsoft\Teams\gpucache" | Remove-Item -Recurse -ErrorAction SilentlyContinue
-    Get-ChildItem -Path $env:APPDATA\"Microsoft\Teams\Indexeddb" | Remove-Item -Recurse -ErrorAction SilentlyContinue
-    Get-ChildItem -Path $env:APPDATA\"Microsoft\Teams\Local Storage" | Remove-Item -Recurse -ErrorAction SilentlyContinue
-    Get-ChildItem -Path $env:APPDATA\"Microsoft\Teams\tmp" | Remove-Item -Recurse -ErrorAction SilentlyContinue
-    Write-Host "Teams Cache cleaned" 
-}
-catch {
-    Write-Output $_ 
+function Close-OfficeProzesse {
+
+    # Office Prozesse beenden
+    foreach ($Prog in $OfficeProzesse) {
+        $Prozess = Get-Process -ProcessName $Prog -ErrorAction SilentlyContinue
+        Write-Host "Versuche "+ $Prog + " zu beenden..."
+        Stop-Process $Prozess.Id -Force
+    }
+    Write-Host "Es wird 10 Sekunden auf Beendigung der Prozesse gewartet..."
+    Wait-Process -Name ($OfficeProzesse -join ", ") -Timeout 5
 }
 
-# Remove Credentials from Credential Manager
-cmdkey /list | ForEach-Object 
-{ 
-    if ($_ -like "*Target:*" -and $_ -like "*msteams*") {
-        cmdkey /del:($_ -replace " ", "" -replace "Target:", "") 
-    } 
+function Remove-TeamsCache {
+    # Teams Cache leeren und andere Dateien löschen
+    try {
+        Get-ChildItem -Path $TeamsOrdner | Remove-Item -Recurse -ErrorAction SilentlyContinue
+        Write-Host "Teams Cache geleert" 
+    }
+    catch {
+        Write-Host $Error[0]
+    }
 }
 
-# Remove Microsoft Teams registry keys
-try {
-    $Regkeypath = "HKCU:\Software\Microsoft\Office\Teams" 
-    $value = $null -eq (Get-ItemProperty $Regkeypath).HomeUserUpn
-    If ($value -eq $False) { 
-        Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Office\Teams" -Name "HomeUserUpn"
-        Write-Host "The registry value was sucessfully removed" 
-    } 
+function Remove-Rest {
+    # Gespeicherte Anmeldedaten zu Teams entfernen
+    cmdkey /list | ForEach-Object 
+    { 
+        if ($_ -like "*Ziel:*" -and $_ -like "*teams*") {
+            cmdkey /del:($_ -replace " ", "" -replace "Ziel:", "") 
+        }
+    }
+    
+    # Teams Registry Schlüssel entfernen
+    try {
+        $Regkeypath = "HKCU:\Software\Microsoft\Office\Teams" 
+        $value = $null -eq (Get-ItemProperty $Regkeypath).HomeUserUpn
+        If ($value -eq $False) { 
+            Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Office\Teams" -Name "HomeUserUpn"
+            Write-Host "Registrierungseintrag erfolgreich entfernt!" 
+        } 
+    }
+    catch {
+        Write-Host "Registrierungseintrag existiert nicht!" 
+    }
+    
+    # Entferne AAD.BrokerPlugin (Arbeits-/Schul-Konto Anmeldung)
+    try {
+        $LocalPackagesFolder = "$env:LOCALAPPDATA\Packages"
+        $AADBrokerFolder = Get-ChildItem -Path $LocalPackagesFolder -Recurse -Include "Microsoft.AAD.BrokerPlugin_*";
+        $AADBrokerFolder = $AADBrokerFolder[0];
+        Get-ChildItem "$AADBrokerFolder\AC\TokenBroker\Accounts" | Remove-Item -Recurse -Force
+        Write-Host "Arbeits-/Schulkonto-Sitzung entfernt!"
+    }
+    catch {
+        Write-Host "Fehler beim Entfernen der Sitzung des Arbeits- oder Schulkontos:"
+        Write-Host $Error[0]
+    }
+    
 }
-catch {
-    Write-Host "The registry value does not exist" 
-}
-
-# Get Desktop-config.json
-$TeamsFolders = "$env:APPDATA\Microsoft\Teams"
-try {
-    $SourceDesktopConfigFile = "$TeamsFolders\desktop-config.json"
-    $desktopConfig = (Get-Content -Path $SourceDesktopConfigFile | ConvertFrom-Json)
-}
-catch { 
-    Write-Host "Failed to open Desktop-config.json" 
-}
-
-# Overwrite the desktop-config.json
-Write-Host "Modify desktop-Config.Json"
-try {
-    $desktopConfig.isLoggedOut = $true
-    $desktopConfig.upnWindowUserUpn = ""; #The email used to sign in
-    $desktopConfig.userUpn = "";
-    $desktopConfig.userOid = "";
-    $desktopConfig.userTid = "";
-    $desktopConfig.homeTenantId = "";
-    $desktopConfig.webAccountId = "";
-    $desktopConfig | ConvertTo-Json -Compress | Set-Content -Path $SourceDesktopConfigFile -Force
-}
-catch { 
-    Write-Host "Failed to overwrite desktop-config.json" 
-}
-Write-Host "Modify desktop-Config.Json - Finished"
-
-# Delete the Cookies file. This is a fix for when the joining as anonymous, and prevents the last used guest name from being reused.
-Get-ChildItem "$TeamsFolders\Cookies" | Remove-Item
-
-# Lastly delete the storage.json, this corrects some error that MSTeams otherwise would have when logging in again.
-Get-ChildItem "$TeamsFolders\storage.json" | Remove-Item
-
-# Try to remove the Link School/Work account if there was one. It can be created if the first time you sign in, the user all
-$LocalPackagesFolder = "$env:LOCALAPPDATA\Packages"
-$AADBrokerFolder = Get-ChildItem -Path $LocalPackagesFolder -Recurse -Include "Microsoft.AAD.BrokerPlugin_*";
-$AADBrokerFolder = $AADBrokerFolder[0];
-Get-ChildItem "$AADBrokerFolder\AC\TokenBroker\Accounts" | Remove-Item -Recurse -Force
