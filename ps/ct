@@ -5,13 +5,13 @@ $OfficeProzesse = @(
 )
 $TeamsOrdner = "$env:APPDATA\Microsoft\Teams"
 
-# HauptmenÃ¼
-$cache = [System.Management.Automation.Host.ChoiceDescription]::new('&Cache', 'Nur Cache wird gelÃ¶scht')
-$alles = [System.Management.Automation.Host.ChoiceDescription]::new('&Alles (Cache & Anmeldeinformationen)', 'Cache und Anmeldeinformationen werden gelÃ¶scht!')
+# Hauptmenü
+$cache = [System.Management.Automation.Host.ChoiceDescription]::new('&Cache', 'Nur Cache wird gelöscht')
+$alles = [System.Management.Automation.Host.ChoiceDescription]::new('&Alles (Cache & Anmeldeinformationen)', 'Cache und Anmeldeinformationen werden gelöscht!')
 $nichts = [System.Management.Automation.Host.ChoiceDescription]::new('&Nichts', 'Skript wird abgebrochen!')
 $antworten = [System.Management.Automation.Host.ChoiceDescription[]]($cache, $alles, $nichts)
 $titel = "Was soll bereinigt werden?"
-$nachricht = "`nIm Zweifelsfall erst nur den Cache,`nansonsten mit Option Alles nochmal ausfÃ¼hren!"
+$nachricht = "`nIm Zweifelsfall erst nur den Cache,`nansonsten mit Option Alles nochmal ausführen!"
 
 $ergebnis = $host.ui.PromptForChoice($titel, $nachricht, $antworten, 2)
 Clear-Host
@@ -21,7 +21,7 @@ if ($ergebnis -eq 0) {
     Remove-TeamsCache
     
     Clear-Host
-    Write-Host "AusfÃ¼hrung abgeschlossen!"
+    Write-Host "Ausführung abgeschlossen!"
     Write-Host "Nach erfolgreichem Test am besten PC neustarten!"
 }
 elseif ($ergebnis -eq 1) {
@@ -30,11 +30,11 @@ elseif ($ergebnis -eq 1) {
     Remove-Rest
 
     Clear-Host
-    Write-Host "AusfÃ¼hrung abgeschlossen!"
+    Write-Host "Ausführung abgeschlossen!"
     Write-Host "Nach erfolgreichem Test am besten PC neustarten!"
 }
 else {
-    Write-Host "AusfÃ¼hrung vom Nutzer abgebrochen!"
+    Write-Host "Ausführung vom Nutzer abgebrochen!"
 }
 Start-Sleep -Seconds 5
 Clear-Host
@@ -55,7 +55,7 @@ function Close-OfficeProzesse {
 }
 
 function Remove-TeamsCache {
-    # Teams Cache leeren und andere Dateien lÃ¶schen
+    # Teams Cache leeren und andere Dateien löschen
     try {
         Get-ChildItem -Path $TeamsOrdner | Remove-Item -Recurse -ErrorAction SilentlyContinue
         Write-Host "Teams Cache geleert" 
@@ -75,7 +75,7 @@ function Remove-Rest {
     }
 }
 
-# Teams Registry SchlÃ¼ssel entfernen
+# Teams Registry Schlüssel entfernen
 try {
     $Regkeypath = "HKCU:\Software\Microsoft\Office\Teams" 
     $value = $null -eq (Get-ItemProperty $Regkeypath).HomeUserUpn
