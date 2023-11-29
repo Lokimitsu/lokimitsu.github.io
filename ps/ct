@@ -21,6 +21,7 @@ if ($ergebnis -eq 0) {
     
     Clear-Host
     Write-Host "Ausführung abgeschlossen!"
+    Write-Host "Nach erfolgreichem Test am besten PC neustarten!"
 }
 elseif ($ergebnis -eq 1) {
     Close-OfficeProzesse
@@ -29,11 +30,12 @@ elseif ($ergebnis -eq 1) {
 
     Clear-Host
     Write-Host "Ausführung abgeschlossen!"
+    Write-Host "Nach erfolgreichem Test am besten PC neustarten!"
 }
 else {
     Write-Host "Ausführung vom Nutzer abgebrochen!"
 }
-Start-Sleep -Seconds 3
+Start-Sleep -Seconds 5
 Clear-Host
 Exit
 
@@ -43,7 +45,9 @@ function Close-OfficeProzesse {
     foreach ($Prog in $OfficeProzesse) {
         $Prozess = Get-Process -ProcessName $Prog -ErrorAction SilentlyContinue
         Write-Host "Versuche "+ $Prog + " zu beenden..."
-        Stop-Process $Prozess.Id -Force
+        if ($null -ne $Prog) {
+            Stop-Process $Prozess.Id -Force
+        }
     }
     Write-Host "Es wird 10 Sekunden auf Beendigung der Prozesse gewartet..."
     Wait-Process -Name ($OfficeProzesse -join ", ") -Timeout 5
