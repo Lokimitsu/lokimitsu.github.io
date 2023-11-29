@@ -73,29 +73,30 @@ function Remove-Rest {
             cmdkey /del:($_ -replace " ", "" -replace "Ziel:", "") 
         }
     }
+}
+
+# Teams Registry Schlüssel entfernen
+try {
+    $Regkeypath = "HKCU:\Software\Microsoft\Office\Teams" 
+    $value = $null -eq (Get-ItemProperty $Regkeypath).HomeUserUpn
+    If ($value -eq $False) { 
+        Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Office\Teams" -Name "HomeUserUpn"
+        Write-Host "Registrierungseintrag erfolgreich entfernt!" 
+    } 
+}
+catch {
+    Write-Host "Registrierungseintrag existiert nicht!" 
+}
     
-    # Teams Registry Schlüssel entfernen
-    try {
-        $Regkeypath = "HKCU:\Software\Microsoft\Office\Teams" 
-        $value = $null -eq (Get-ItemProperty $Regkeypath).HomeUserUpn
-        If ($value -eq $False) { 
-            Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Office\Teams" -Name "HomeUserUpn"
-            Write-Host "Registrierungseintrag erfolgreich entfernt!" 
-        } 
-    }
-    catch {
-        Write-Host "Registrierungseintrag existiert nicht!" 
-    }
-    
-    # Entferne AAD.BrokerPlugin (Arbeits-/Schul-Konto Anmeldung)
-    try {
-        $LocalPackagesFolder = "$env:LOCALAPPDATA\Packages"
-        $AADBrokerFolder = Get-ChildItem -Path $LocalPackagesFolder -Recurse -Include "Microsoft.AAD.BrokerPlugin_*";
-        $AADBrokerFolder = $AADBrokerFolder[0];
-        Get-ChildItem "$AADBrokerFolder\AC\TokenBroker\Accounts" | Remove-Item -Recurse -Force
-        Write-Host "Arbeits-/Schulkonto-Sitzung entfernt!"
-    }
-    catch {
-        Write-Host "Fehler beim Entfernen der Sitzung des Arbeits- oder Schulkontos:"
-        Write-Host $Error[0]
-    }
+# Entferne AAD.BrokerPlugin (Arbeits-/Schul-Konto Anmeldung)
+try {
+    $LocalPackagesFolder = "$env:LOCALAPPDATA\Packages"
+    $AADBrokerFolder = Get-ChildItem -Path $LocalPackagesFolder -Recurse -Include "Microsoft.AAD.BrokerPlugin_*";
+    $AADBrokerFolder = $AADBrokerFolder[0];
+    Get-ChildItem "$AADBrokerFolder\AC\TokenBroker\Accounts" | Remove-Item -Recurse -Force
+    Write-Host "Arbeits-/Schulkonto-Sitzung entfernt!"
+}
+catch {
+    Write-Host "Fehler beim Entfernen der Sitzung des Arbeits- oder Schulkontos:"
+    Write-Host $Error[0]
+}
