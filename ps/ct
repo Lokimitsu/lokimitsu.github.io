@@ -1,4 +1,4 @@
-# Parameter
+﻿# Parameter
 OfficeProzesse = @(
     "Teams", "Outlook", "WinWord", "Excel", "Powerpoint", "OneDrive", "OneNote", "OneNoteM"
 )
