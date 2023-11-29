@@ -1,4 +1,5 @@
-﻿# Parameter
+﻿[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+# Parameter
 $OfficeProzesse = @(
     "Teams", "Outlook", "WinWord", "Excel", "Powerpoint", "OneDrive", "OneNote", "OneNoteM"
 )
