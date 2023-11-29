@@ -1,6 +1,6 @@
 # Parameter
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OfficeProzesse = @(
+OfficeProzesse = @(
     "Teams", "Outlook", "WinWord", "Excel", "Powerpoint", "OneDrive", "OneNote", "OneNoteM"
 )
 $TeamsOrdner = "$env:APPDATA\Microsoft\Teams"
@@ -99,5 +99,3 @@ function Remove-Rest {
         Write-Host "Fehler beim Entfernen der Sitzung des Arbeits- oder Schulkontos:"
         Write-Host $Error[0]
     }
-    
-}
