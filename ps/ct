@@ -1,5 +1,4 @@
-﻿[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-# Parameter
+﻿# Parameter
 $OfficeProzesse = @(
     "Teams", "Outlook", "WinWord", "Excel", "Powerpoint", "OneDrive", "OneNote", "OneNoteM"
 )
@@ -50,7 +49,7 @@ function Close-OfficeProzesse {
             Stop-Process $Prozess.Id -Force
         }
     }
-    Write-Host "Es wird 10 Sekunden auf Beendigung der Prozesse gewartet..."
+    Write-Host "Es wird 5 Sekunden auf Beendigung der Prozesse gewartet..."
     Wait-Process -Name ($OfficeProzesse -join ", ") -Timeout 5
 }
 
