@@ -1,6 +1,6 @@
 ﻿# Parameter
 $OfficeProzesse = @(
-    "Teams", "Outlook", "WinWord", "Excel", "Powerpoint", "OneDrive", "OneNote", "OneNoteM"
+    'Teams', 'Outlook', 'WinWord', 'Excel', 'Powerpoint', 'OneDrive', 'OneNote', 'OneNoteM'
 )
 $TeamsOrdner = "$env:APPDATA\Microsoft\Teams"
 
@@ -9,7 +9,7 @@ $cache = [System.Management.Automation.Host.ChoiceDescription]::new('&Cache', 'N
 $alles = [System.Management.Automation.Host.ChoiceDescription]::new('&Alles (Cache & Anmeldeinformationen)', 'Cache und Anmeldeinformationen werden gelöscht!')
 $nichts = [System.Management.Automation.Host.ChoiceDescription]::new('&Nichts', 'Skript wird abgebrochen!')
 $antworten = [System.Management.Automation.Host.ChoiceDescription[]]($cache, $alles, $nichts)
-$titel = "Was soll bereinigt werden?"
+$titel = 'Was soll bereinigt werden?'
 $nachricht = "`nIm Zweifelsfall erst nur den Cache,`nansonsten mit Option Alles nochmal ausführen!"
 
 $ergebnis = $host.ui.PromptForChoice($titel, $nachricht, $antworten, 2)
@@ -20,8 +20,8 @@ if ($ergebnis -eq 0) {
     Remove-TeamsCache
     
     Clear-Host
-    Write-Host "Ausführung abgeschlossen!"
-    Write-Host "Nach erfolgreichem Test am besten PC neustarten!"
+    Write-Host 'Ausführung abgeschlossen!'
+    Write-Host 'Nach erfolgreichem Test am besten PC neustarten!'
 }
 elseif ($ergebnis -eq 1) {
     Close-OfficeProzesse
@@ -29,11 +29,11 @@ elseif ($ergebnis -eq 1) {
     Remove-Rest
 
     Clear-Host
-    Write-Host "Ausführung abgeschlossen!"
-    Write-Host "Nach erfolgreichem Test am besten PC neustarten!"
+    Write-Host 'Ausführung abgeschlossen!'
+    Write-Host 'Nach erfolgreichem Test am besten PC neustarten!'
 }
 else {
-    Write-Host "Ausführung vom Nutzer abgebrochen!"
+    Write-Host 'Ausführung vom Nutzer abgebrochen!'
 }
 Start-Sleep -Seconds 5
 Clear-Host
@@ -44,20 +44,20 @@ function Close-OfficeProzesse {
     # Office Prozesse beenden
     foreach ($Prog in $OfficeProzesse) {
         $Prozess = Get-Process -ProcessName $Prog -ErrorAction SilentlyContinue
-        Write-Host "Versuche "+ $Prog + " zu beenden..."
+        Write-Host 'Versuche '+ $Prog + ' zu beenden...'
         if ($null -ne $Prog) {
             Stop-Process $Prozess.Id -Force
         }
     }
-    Write-Host "Es wird 5 Sekunden auf Beendigung der Prozesse gewartet..."
-    Wait-Process -Name ($OfficeProzesse -join ", ") -Timeout 5
+    Write-Host 'Es wird 5 Sekunden auf Beendigung der Prozesse gewartet...'
+    Wait-Process -Name ($OfficeProzesse -join ', ') -Timeout 5
 }
 
 function Remove-TeamsCache {
     # Teams Cache leeren und andere Dateien löschen
     try {
         Get-ChildItem -Path $TeamsOrdner | Remove-Item -Recurse -ErrorAction SilentlyContinue
-        Write-Host "Teams Cache geleert" 
+        Write-Host 'Teams Cache geleert' 
     }
     catch {
         Write-Host $Error[0]
@@ -68,34 +68,34 @@ function Remove-Rest {
     # Gespeicherte Anmeldedaten zu Teams entfernen
     cmdkey /list | ForEach-Object 
     { 
-        if ($_ -like "*Ziel:*" -and $_ -like "*teams*") {
-            cmdkey /del:($_ -replace " ", "" -replace "Ziel:", "") 
+        if ($_ -like '*Ziel:*' -and $_ -like '*teams*') {
+            cmdkey /del:($_ -replace ' ', '' -replace 'Ziel:', '') 
         }
     }
 }
 
 # Teams Registry Schlüssel entfernen
 try {
-    $Regkeypath = "HKCU:\Software\Microsoft\Office\Teams" 
+    $Regkeypath = 'HKCU:\Software\Microsoft\Office\Teams' 
     $value = $null -eq (Get-ItemProperty $Regkeypath).HomeUserUpn
     If ($value -eq $False) { 
-        Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Office\Teams" -Name "HomeUserUpn"
-        Write-Host "Registrierungseintrag erfolgreich entfernt!" 
+        Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Office\Teams' -Name 'HomeUserUpn'
+        Write-Host 'Registrierungseintrag erfolgreich entfernt!' 
     } 
 }
 catch {
-    Write-Host "Registrierungseintrag existiert nicht!" 
+    Write-Host 'Registrierungseintrag existiert nicht!' 
 }
     
 # Entferne AAD.BrokerPlugin (Arbeits-/Schul-Konto Anmeldung)
 try {
     $LocalPackagesFolder = "$env:LOCALAPPDATA\Packages"
-    $AADBrokerFolder = Get-ChildItem -Path $LocalPackagesFolder -Recurse -Include "Microsoft.AAD.BrokerPlugin_*";
-    $AADBrokerFolder = $AADBrokerFolder[0];
+    $AADBrokerFolder = Get-ChildItem -Path $LocalPackagesFolder -Recurse -Include 'Microsoft.AAD.BrokerPlugin_*'
+    $AADBrokerFolder = $AADBrokerFolder[0]
     Get-ChildItem "$AADBrokerFolder\AC\TokenBroker\Accounts" | Remove-Item -Recurse -Force
-    Write-Host "Arbeits-/Schulkonto-Sitzung entfernt!"
+    Write-Host 'Arbeits-/Schulkonto-Sitzung entfernt!'
 }
 catch {
-    Write-Host "Fehler beim Entfernen der Sitzung des Arbeits- oder Schulkontos:"
+    Write-Host 'Fehler beim Entfernen der Sitzung des Arbeits- oder Schulkontos:'
     Write-Host $Error[0]
 }
