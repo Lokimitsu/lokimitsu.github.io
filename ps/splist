@@ -1,29 +1,47 @@
-$ComputerSystem = Get-CimInstance -ClassName Win32_ComputerSystem
-$PhysicalMemory = Get-CimInstance -ClassName Win32_PhysicalMemory | Select-Object -First 1
-$VideoController = Get-CimInstance -ClassName Win32_VideoController
-$NetAdapter = Get-NetAdapter
+<#
+.SYNOPSIS
+    Retrieves detailed system information including RAM type, form factor, and other hardware details.
 
-$allInfo = [PSCustomObject]@{
-    Hostname     = $ComputerSystem | Select-Object -ExpandProperty Name
-    Owner        = $ComputerSystem | Select-Object -ExpandProperty UserName
-    SerialNumber = Get-CimInstance -ClassName Win32_BIOS | Select-Object -ExpandProperty SerialNumber
-    LANMAC       = $NetAdapter | Where-Object { $_.Name -eq 'Ethernet' } | Select-Object -ExpandProperty MacAddress
-    WLANMAC      = $NetAdapter | Where-Object { $_.Name -eq 'WLAN' } | Select-Object -ExpandProperty MacAddress
-    OS           = Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object -ExpandProperty Caption
-    CPUType      = Get-CimInstance -ClassName Win32_Processor | Select-Object -ExpandProperty Name
-    SSDSize      = [System.Math]::Pow(2, [System.Math]::Ceiling([System.Math]::Log(((Get-Volume | Measure-Object -Property Size -Sum | Select-Object -ExpandProperty Sum) / 1GB), 2)))
-    RAMSize      = [math]::Round(($PhysicalMemory | Measure-Object -Property Capacity -Sum | Select-Object -ExpandProperty Sum) / 1GB, 2)
-    RAMType      = Get-RAM
-    Resolution   = "$(($VideoController | Select-Object -First 1).CurrentHorizontalResolution)x$(($VideoController | Select-Object -First 1).CurrentVerticalResolution)"
-    RefreshRate  = $VideoController | Select-Object -ExpandProperty MaxRefreshRate
-}
+.DESCRIPTION
+    This script gathers and displays various system information such as hostname, owner, serial number, 
+    MAC addresses, operating system, CPU type, SSD size, RAM size, RAM type, screen resolution, and refresh rate.
+    It uses CIM (Common Information Model) instances to query system hardware and software details.
 
-$allInfo
+.FUNCTIONS
+    Get-RAM
+        Determines the RAM type and form factor based on SMBIOSMemoryType and FormFactor properties.
 
-function Get-RAM
-{
-    $RAMType = switch ($PhysicalMemory.SMBIOSMemoryType)
-    {
+.PARAMETERS
+    None
+
+.OUTPUTS
+    [ordered] Hashtable
+        Returns an ordered hashtable containing the following keys:
+        - Hostname: The name of the computer.
+        - Owner: The username of the current owner.
+        - SerialNumber: The serial number of the system's BIOS.
+        - LANMAC: The MAC address of the Ethernet adapter.
+        - WLANMAC: The MAC address of the WLAN adapter.
+        - OS: The name of the operating system.
+        - CPUType: The name of the processor.
+        - SSDSize: The total size of the SSD in GB, rounded to the nearest power of 2.
+        - RAMSize: The total size of the RAM in GB.
+        - RAMType: The type and form factor of the RAM.
+        - Resolution: The screen resolution in the format "WidthxHeight".
+        - RefreshRate: The maximum refresh rate of the video controller.
+
+.NOTES
+    - Requires administrative privileges to run.
+    - Uses the `Get-CimInstance` cmdlet to query system information.
+    - Assumes the presence of Ethernet and WLAN adapters for MAC address retrieval.
+
+.EXAMPLE
+    PS> .\Get-SPListDetails.ps1
+    Returns a hashtable with detailed system information.
+
+#>
+function Get-RAM {
+    $RAMType = switch ($PhysicalMemory.SMBIOSMemoryType) {
         0 { 'Typ: Unbekannt' }
         1 { 'Typ: Anderer' }
         2 { 'DRAM' }
@@ -65,8 +83,7 @@ function Get-RAM
         default { 'RAM-Typ: Unbekannt' }
     }
 
-    $RAMFormFactor = switch ($PhysicalMemory.FormFactor)
-    {
+    $RAMFormFactor = switch ($PhysicalMemory.FormFactor) {
         0 { 'Formfaktor: Unbekannt' }
         1 { 'Formfaktor: Anderer Typ' }
         2 { 'SIP' }
@@ -168,3 +185,25 @@ function Get-RAM
 
     return "$RAMType, $RAMFormFactor"
 }
+
+$ComputerSystem = Get-CimInstance -ClassName Win32_ComputerSystem
+$PhysicalMemory = Get-CimInstance -ClassName Win32_PhysicalMemory | Select-Object -First 1
+$VideoController = Get-CimInstance -ClassName Win32_VideoController
+$NetAdapter = Get-NetAdapter
+
+$allInfo = [ordered] @{
+    Hostname     = $ComputerSystem | Select-Object -ExpandProperty Name
+    Owner        = $ComputerSystem | Select-Object -ExpandProperty UserName
+    SerialNumber = Get-CimInstance -ClassName Win32_BIOS | Select-Object -ExpandProperty SerialNumber
+    LANMAC       = $NetAdapter | Where-Object { $_.Name -eq 'Ethernet' } | Select-Object -ExpandProperty MacAddress
+    WLANMAC      = $NetAdapter | Where-Object { $_.Name -eq 'WLAN' } | Select-Object -ExpandProperty MacAddress
+    OS           = Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object -ExpandProperty Caption
+    CPUType      = Get-CimInstance -ClassName Win32_Processor | Select-Object -ExpandProperty Name
+    SSDSize      = [System.Math]::Pow(2, [System.Math]::Ceiling([System.Math]::Log(((Get-Volume | Measure-Object -Property Size -Sum | Select-Object -ExpandProperty Sum) / 1GB), 2)))
+    RAMSize      = [math]::Round(($PhysicalMemory | Measure-Object -Property Capacity -Sum | Select-Object -ExpandProperty Sum) / 1GB, 2)
+    RAMType      = Get-RAM
+    Resolution   = "$(($VideoController | Select-Object -First 1).CurrentHorizontalResolution)x$(($VideoController | Select-Object -First 1).CurrentVerticalResolution)"
+    RefreshRate  = $VideoController | Select-Object -ExpandProperty MaxRefreshRate
+}
+
+$allInfo
