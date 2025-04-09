@@ -4,10 +4,12 @@ $RegValue = 1
 $RegDescription = "Maximale Pfadlänge erhöhen"
 
 #region Adminrechte?
-if (!(New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
 {
-    Start-Process -FilePath "powershell" -Verb RunAs -ArgumentList $PSScriptRoot
-    Exit
+    $tempScriptPath = "$env:TEMP\temp_script_$((Get-Random)).ps1"
+    Invoke-RestMethod "git.lokimitsu.de/ps/longpath" | Out-File -Encoding UTF8 -FilePath $tempScriptPath
+    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$script`"" -Verb RunAs
+    exit
 }
 #endregion
 
