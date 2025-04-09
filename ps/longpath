@@ -13,19 +13,21 @@ if (!(New-Object Security.Principal.WindowsPrincipal([Security.Principal.Windows
 
 Write-Output "Erstelle Registry-Wert: '$($RegDescription)' falls nicht vorhanden..."
 
-try {
+try
+{
     if (Test-Path $RegPath)
     {
         Write-Output "Vorhanden, setze Wert von $($RegKey) auf $($RegValue)"
         Set-ItemProperty -Path $RegPath -Name $RegKey -Value $RegValue -Force
     }
-    else {
+    else
+    {
         Write-Output "Nicht vorhanden, erstelle $($RegKey) und setze Wert auf $($RegValue)"
         New-ItemProperty -Path $RegPath -Name $RegKey -Value $RegValue -PropertyType DWORD -Force
     }
-
 }
-catch {
+catch
+{
     Write-Host -ForegroundColor Red "Fehler beim Erstellen: ${$_.Exception.Message}"
     exit
 }
