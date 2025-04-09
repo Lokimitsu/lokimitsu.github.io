@@ -3,6 +3,14 @@ $RegKey = "LongPathsEnabled"
 $RegValue = 1
 $RegDescription = "Maximale Pfadlänge erhöhen"
 
+#region Adminrechte?
+if (!(New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
+{
+    Start-Process -FilePath "powershell" -Verb RunAs -ArgumentList $PSScriptRoot
+    Exit
+}
+#endregion
+
 Write-Output "Erstelle Registry-Wert: '$($RegDescription)' falls nicht vorhanden..."
 
 try {
@@ -19,6 +27,7 @@ try {
 }
 catch {
     Write-Host -ForegroundColor Red "Fehler beim Erstellen: ${$_.Exception.Message}"
+    exit
 }
 
 Write-Host -ForegroundColor Green "Schlüssel erstellt!"
