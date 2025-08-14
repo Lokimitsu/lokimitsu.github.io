@@ -23,7 +23,7 @@ $result = foreach ($key in $keys)
                 [PSCustomObject]@
                 {
                     Shell_Command = "shell:$($_.Name)"
-                    Zielpfad = $_.Value
+                    Target = $_.Value
                 }
             }
         }
