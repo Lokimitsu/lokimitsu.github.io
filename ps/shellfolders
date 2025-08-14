@@ -20,10 +20,10 @@ $result = foreach ($key in $keys)
             }
             | Sort-Object Name | ForEach-Object
             {
-                [PSCustomObject]@
-                {
+                [PSCustomObject]
+                @{
                     Shell_Command = "shell:$($_.Name)"
-                    Target = $_.Value
+                    Target        = $_.Value
                 }
             }
         }
