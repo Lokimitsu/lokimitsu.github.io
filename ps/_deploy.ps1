@@ -1,1 +1,0 @@
-Copy-Item -Path '.\Get-SPListDetails.ps1' -Destination 'D:\lokimitsu.github.io\ps\splist' -Force
