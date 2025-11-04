@@ -1,0 +1,9 @@
+$CurrentMTU = 1500
+$Target = '8.8.8.8'
+
+while ((Invoke-Command -ScriptBlock { Test-Connection -DontFragment -Count 1 -BufferSize ($CurrentMTU - 28) -TargetName $Target }).Status -eq 'PacketTooBig')
+{
+    $CurrentMTU -= 2
+}
+
+Write-Host "Maximum MTU is $CurrentMTU"
