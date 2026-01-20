@@ -1,0 +1,23 @@
+# 1. Netzwerk-Stacks zurücksetzen (CMD-Legacy Befehle)
+Write-Host "Setze Winsock und IP-Stack zurück..." -ForegroundColor Cyan
+netsh winsock reset
+netsh int ip reset
+
+# 2. DNS-Cache leeren (Native PowerShell)
+Write-Host "Leere DNS-Cache..." -ForegroundColor Cyan
+Clear-DnsClientCache
+
+# 3. Netzwerkadapter neu starten (Native PowerShell)
+# Erneuert DHCP-Leases für alle aktiven Adapter
+Write-Host "Starte Netzwerkadapter neu..." -ForegroundColor Cyan
+Get-NetAdapter | Where-Object { $_.Status -eq "Up" } | Restart-NetAdapter
+
+# 4. Neustart-Vorgang einleiten
+Write-Host ""
+Write-Host "Der Computer wird in 5 Sekunden neu gestartet, um die Änderungen zu übernehmen." -ForegroundColor Yellow
+Write-Host "Drücke STRG+C, um den Neustart abzubrechen!" -ForegroundColor Red
+
+Start-Sleep -Seconds 5
+
+# Computer neu starten
+Restart-Computer -Force
