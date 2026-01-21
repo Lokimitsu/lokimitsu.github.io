@@ -1,0 +1,59 @@
+<#
+.SYNOPSIS
+    Prüft den Status der neuen Microsoft UEFI 2023 Zertifikate für Secure Boot.
+    Benötigt Administrator-Rechte.
+#>
+
+function Get-SecureBootStatus {
+    $results = [PSCustomObject]@{
+        SecureBootEnabled = $false
+        Has2023DB         = $false
+        Has2023KEK        = $false
+        Status            = "Unbekannt"
+    }
+
+    # 1. Prüfen, ob Secure Boot überhaupt aktiv ist
+    if ((Get-SecureBootUEFI -Name SetupMode).Bytes[0] -ne 0) {
+        $results.Status = "Secure Boot ist im Setup-Mode oder Deaktiviert"
+        return $results
+    }
+    $results.SecureBootEnabled = $true
+
+    # 2. Datenbank (db) nach dem 2023er Zertifikat durchsuchen
+    try {
+        $dbVars = Get-SecureBootUEFI -Name db
+        if ($dbVars.Bytes) {
+            $dbString = [System.Text.Encoding]::ASCII.GetString($dbVars.Bytes)
+            if ($dbString -match "Microsoft Windows Production PCA 2023") {
+                $results.Has2023DB = $true
+            }
+        }
+
+        # 3. Key Exchange Key (KEK) nach dem 2023er Zertifikat durchsuchen
+        $kekVars = Get-SecureBootUEFI -Name KEK
+        if ($kekVars.Bytes) {
+            $kekString = [System.Text.Encoding]::ASCII.GetString($kekVars.Bytes)
+            if ($kekString -match "Microsoft Corporation KEK CA 2023") {
+                $results.Has2023KEK = $true
+            }
+        }
+    } catch {
+        $results.Status = "Fehler beim Lesen der UEFI-Variablen: $($_.Exception.Message)"
+        return $results
+    }
+
+    # Gesamtstatus bestimmen
+    if ($results.Has2023DB -and $results.Has2023KEK) {
+        $results.Status = "Bereit für 2026 (Zertifikate vorhanden)"
+    } elseif ($results.Has2023DB) {
+        $results.Status = "Teilweise bereit (Nur DB vorhanden)"
+    } else {
+        $results.Status = "Update erforderlich (Keine 2023er Zertifikate)"
+    }
+
+    return $results
+}
+
+# Ausführung
+$Report = Get-SecureBootStatus
+$Report | Format-Table
