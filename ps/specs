@@ -40,6 +40,23 @@ function Get-Text {
     if ($items.Count) { return ($items -join '; ') }
     return 'Nicht ermittelbar'
 }
+function Get-ModelName {
+    param($Manufacturer, $SystemFamily, $Model)
+    $words = New-Object 'System.Collections.Generic.List[string]'
+    $seen = @{}
+    foreach ($part in @($Manufacturer, $SystemFamily, $Model)) {
+        if ([string]::IsNullOrWhiteSpace([string]$part)) { continue }
+        foreach ($word in ([string]$part).Trim() -split '\s+') {
+            # Ganze Begriffe ohne Beachtung der Gross-/Kleinschreibung vergleichen.
+            if (-not $seen.ContainsKey($word)) {
+                $seen[$word] = $true
+                $words.Add($word)
+            }
+        }
+    }
+    return (Get-Text ($words -join ' '))
+}
+
 function Format-Capacity {
     param($Bytes)
     if ($null -eq $Bytes -or [double]$Bytes -le 0) { return 'Nicht ermittelbar' }
@@ -71,7 +88,7 @@ function Add-Inventory {
     param([string]$Field, $Value)
     $inventory.Add([pscustomobject][ordered]@{ Feld = $Field; Wert = (Get-Text $Value) })
 }
-Add-Inventory 'Modellbezeichnung' ((@($cs.Manufacturer, $cs.Model) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() }) -join ' ')
+Add-Inventory 'Modellbezeichnung' (Get-ModelName $cs.Manufacturer $cs.SystemFamily $cs.Model)
 Add-Inventory 'Geraetename (Hostname)' $env:COMPUTERNAME
 Add-Inventory 'Seriennummer (Service Tag)' $bios.SerialNumber
 foreach ($kind in @('LAN', 'WLAN')) {
