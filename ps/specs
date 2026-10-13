@@ -1,7 +1,7 @@
-﻿#requires -Version 5.1
+#requires -Version 5.1
 <#
 .SYNOPSIS
-    Zeigt Inventardaten des lokalen Windows-Geräts und deren Datenquellen.
+    Zeigt Inventardaten des lokalen Windows-Geraets und deren Datenquellen.
 .EXAMPLE
     .\Get-DeviceDetails.ps1
 .EXAMPLE
@@ -43,8 +43,8 @@ function Get-Text {
 function Format-Capacity {
     param($Bytes)
     if ($null -eq $Bytes -or [double]$Bytes -le 0) { return 'Nicht ermittelbar' }
-    # Binäre Kapazität auf eine Inventarklasse aufrunden (z. B. 476,94 -> 512).
-    # Die gewünschte Inventarbezeichnung verwendet dafür GB.
+    # Binaere Kapazitaet auf eine Inventarklasse aufrunden (z. B. 476,94 -> 512).
+    # Die gewuenschte Inventarbezeichnung verwendet dafuer GB.
     $capacity = [double]$Bytes / 1GB
     $rounded = [double]1
     while ($rounded -lt $capacity) { $rounded *= 2 }
@@ -56,8 +56,8 @@ $bios = $sources['Win32_BIOS'] | Select-Object -First 1
 $os = $sources['Win32_OperatingSystem'] | Select-Object -First 1
 $win = $sources['Windows CurrentVersion'] | Select-Object -First 1
 $adapters = @($sources['Get-NetAdapter -Physical'])
-# Notebook-Inventar: nur Ethernet am PCI-Bus; USB-/Dock-Adapter ausschließen.
-# Unbekannte Buszuordnungen bleiben ausschließlich in der Diagnose sichtbar.
+# Notebook-Inventar: nur Ethernet am PCI-Bus; USB-/Dock-Adapter ausschliessen.
+# Unbekannte Buszuordnungen bleiben ausschliesslich in der Diagnose sichtbar.
 $lan = @($adapters | Where-Object {
     ($_.PhysicalMediaType -in @('802.3', '14') -or $_.NdisPhysicalMedium -eq 14) -and
     $_.PnPDeviceID -like 'PCI\*'
@@ -72,7 +72,7 @@ function Add-Inventory {
     $inventory.Add([pscustomobject][ordered]@{ Feld = $Field; Wert = (Get-Text $Value) })
 }
 Add-Inventory 'Modellbezeichnung' ((@($cs.Manufacturer, $cs.Model) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() }) -join ' ')
-Add-Inventory 'Gerätename (Hostname)' $env:COMPUTERNAME
+Add-Inventory 'Geraetename (Hostname)' $env:COMPUTERNAME
 Add-Inventory 'Seriennummer (Service Tag)' $bios.SerialNumber
 foreach ($kind in @('LAN', 'WLAN')) {
     $matching = @(if ($kind -eq 'LAN') { $lan } else { $wlan })
@@ -91,7 +91,7 @@ Add-Inventory 'RAM' $ram
 $disks = @($sources['Get-PhysicalDisk'] | Sort-Object DeviceId)
 if ($disks.Count) {
     foreach ($disk in $disks) {
-        $label = 'Datenträger {0} ({1})' -f $disk.DeviceId, $disk.FriendlyName
+        $label = 'Datentraeger {0} ({1})' -f $disk.DeviceId, $disk.FriendlyName
         $media = switch ([string]$disk.MediaType) {
             'SSD' { 'SSD' }; '4' { 'SSD' }; 'HDD' { 'HDD' }; '3' { 'HDD' }
             'SCM' { 'SCM' }; '5' { 'SCM' }; default { 'Unbekannt' }
@@ -99,19 +99,19 @@ if ($disks.Count) {
         $bus = if ([string]::IsNullOrWhiteSpace([string]$disk.BusType)) { 'Unbekannt' }
             else { ([string]$disk.BusType).ToUpperInvariant() }
         Add-Inventory "$label - Typ" ("{0} {1}" -f $bus, $media)
-        Add-Inventory "$label - Größe" (Format-Capacity $disk.Size)
+        Add-Inventory "$label - Groesse" (Format-Capacity $disk.Size)
     }
 } elseif ($sources['Win32_DiskDrive'].Count) {
     foreach ($disk in $sources['Win32_DiskDrive'] | Sort-Object Index) {
-        $label = 'Datenträger {0} ({1})' -f $disk.Index, $disk.Model
+        $label = 'Datentraeger {0} ({1})' -f $disk.Index, $disk.Model
         $bus = if ([string]::IsNullOrWhiteSpace([string]$disk.InterfaceType)) { 'Unbekannt' }
             else { ([string]$disk.InterfaceType).ToUpperInvariant() }
         Add-Inventory "$label - Typ" ("{0} Unbekannt" -f $bus)
-        Add-Inventory "$label - Größe" (Format-Capacity $disk.Size)
+        Add-Inventory "$label - Groesse" (Format-Capacity $disk.Size)
     }
 } else {
     Add-Inventory 'Festplattentyp' 'Nicht ermittelbar'
-    Add-Inventory 'Festplattengröße' 'Nicht ermittelbar'
+    Add-Inventory 'Festplattengroesse' 'Nicht ermittelbar'
 }
 $osText = if ($os) {
     $release = if ($win.DisplayVersion) { $win.DisplayVersion } else { $win.ReleaseId }
@@ -120,7 +120,7 @@ $osText = if ($os) {
 } else { 'Nicht ermittelbar' }
 Add-Inventory 'OS (+Version)' $osText
 
-# Bewusst begrenzte Auswahl: keine vollständige Auflistung von Umgebungsvariablen.
+# Bewusst begrenzte Auswahl: keine vollstaendige Auflistung von Umgebungsvariablen.
 $properties = [ordered]@{
     'Win32_ComputerSystem' = @('Manufacturer','Model','Name','SystemFamily','SystemSKUNumber','TotalPhysicalMemory')
     'Win32_ComputerSystemProduct' = @('Vendor','Name','Version','IdentifyingNumber','UUID','SKUNumber')
@@ -140,7 +140,7 @@ $diagnostics = New-Object 'System.Collections.Generic.List[object]'
 foreach ($source in $properties.Keys) {
     $index = 0
     foreach ($item in $sources[$source]) {
-        # Virtuelle Adapter und Netzlaufwerke sind für die Gerätezuordnung nicht relevant.
+        # Virtuelle Adapter und Netzlaufwerke sind fuer die Geraetezuordnung nicht relevant.
         if ($source -eq 'Win32_NetworkAdapter' -and -not $item.PhysicalAdapter) { continue }
         if ($source -eq 'Win32_LogicalDisk' -and $item.DriveType -ne 3) { continue }
         foreach ($property in $properties[$source]) {
