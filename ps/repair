@@ -1,0 +1,10 @@
+Write-Host "=== Windows-Reparatur wird gestartet ===" -ForegroundColor Cyan
+
+Write-Host "`n[1/2] Repariere Windows-Komponentenspeicher (DISM)..." -ForegroundColor Yellow
+DISM /Online /Cleanup-Image /RestoreHealth
+
+Write-Host "`n[2/2] Überprüfe Systemdateien (SFC)..." -ForegroundColor Yellow
+sfc /scannow
+
+Write-Host "`nFertig. Starte den PC bei Bedarf neu." -ForegroundColor Green
+Pause

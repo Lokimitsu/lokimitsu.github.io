@@ -1,0 +1,167 @@
+﻿#requires -Version 5.1
+<#
+.SYNOPSIS
+    Zeigt Inventardaten des lokalen Windows-Geräts und deren Datenquellen.
+.EXAMPLE
+    .\Get-DeviceDetails.ps1
+.EXAMPLE
+    .\Get-DeviceDetails.ps1 -Diagnose -ExportPath .\Geraetequellen.csv
+.EXAMPLE
+    .\Get-DeviceDetails.ps1 -CopyValue 'Seriennummer (Service Tag)'
+#>
+[CmdletBinding()]
+param(
+    [switch]$Diagnose,
+    [switch]$PassThru,
+    [string]$ExportPath,
+    [string]$CopyValue
+)
+
+$sources = [ordered]@{}
+$issues = New-Object 'System.Collections.Generic.List[string]'
+foreach ($class in @('Win32_ComputerSystem', 'Win32_ComputerSystemProduct', 'Win32_BIOS',
+    'Win32_SystemEnclosure', 'Win32_Processor', 'Win32_PhysicalMemory',
+    'Win32_DiskDrive', 'Win32_LogicalDisk', 'Win32_OperatingSystem', 'Win32_NetworkAdapter')) {
+    try { $sources[$class] = @(Get-CimInstance -ClassName $class -ErrorAction Stop) }
+    catch { $sources[$class] = @(); $issues.Add("${class}: $($_.Exception.Message)") }
+}
+try { $sources['Get-NetAdapter -Physical'] = @(Get-NetAdapter -Physical -ErrorAction Stop) }
+catch { $sources['Get-NetAdapter -Physical'] = @(); $issues.Add("Get-NetAdapter: $($_.Exception.Message)") }
+try { $sources['Get-PhysicalDisk'] = @(Get-PhysicalDisk -ErrorAction Stop) }
+catch { $sources['Get-PhysicalDisk'] = @(); $issues.Add("Get-PhysicalDisk: $($_.Exception.Message)") }
+try {
+    $sources['Windows CurrentVersion'] = @(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction Stop)
+} catch { $sources['Windows CurrentVersion'] = @(); $issues.Add("Windows-Registry: $($_.Exception.Message)") }
+
+function Get-Text {
+    param($Value)
+    $items = @($Value | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace([string]$_) } |
+        ForEach-Object { ([string]$_).Trim() })
+    if ($items.Count) { return ($items -join '; ') }
+    return 'Nicht ermittelbar'
+}
+function Format-Capacity {
+    param($Bytes)
+    if ($null -eq $Bytes -or [double]$Bytes -le 0) { return 'Nicht ermittelbar' }
+    # Binäre Kapazität auf eine Inventarklasse aufrunden (z. B. 476,94 -> 512).
+    # Die gewünschte Inventarbezeichnung verwendet dafür GB.
+    $capacity = [double]$Bytes / 1GB
+    $rounded = [double]1
+    while ($rounded -lt $capacity) { $rounded *= 2 }
+    return ('{0:0} GB' -f $rounded)
+}
+
+$cs = $sources['Win32_ComputerSystem'] | Select-Object -First 1
+$bios = $sources['Win32_BIOS'] | Select-Object -First 1
+$os = $sources['Win32_OperatingSystem'] | Select-Object -First 1
+$win = $sources['Windows CurrentVersion'] | Select-Object -First 1
+$adapters = @($sources['Get-NetAdapter -Physical'])
+# Notebook-Inventar: nur Ethernet am PCI-Bus; USB-/Dock-Adapter ausschließen.
+# Unbekannte Buszuordnungen bleiben ausschließlich in der Diagnose sichtbar.
+$lan = @($adapters | Where-Object {
+    ($_.PhysicalMediaType -in @('802.3', '14') -or $_.NdisPhysicalMedium -eq 14) -and
+    $_.PnPDeviceID -like 'PCI\*'
+})
+$wlan = @($adapters | Where-Object { $_.PhysicalMediaType -in @('Native 802.11', 'Wireless LAN', '9', '1') -or $_.NdisPhysicalMedium -in @(1, 9) })
+# Win32_NetworkAdapter.AdapterTypeID kann auch WLAN als Ethernet melden.
+# Bei fehlender NetAdapter-Abfrage deshalb keine automatische Ersatzzuordnung.
+
+$inventory = New-Object 'System.Collections.Generic.List[object]'
+function Add-Inventory {
+    param([string]$Field, $Value)
+    $inventory.Add([pscustomobject][ordered]@{ Feld = $Field; Wert = (Get-Text $Value) })
+}
+Add-Inventory 'Modellbezeichnung' ((@($cs.Manufacturer, $cs.Model) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() }) -join ' ')
+Add-Inventory 'Gerätename (Hostname)' $env:COMPUTERNAME
+Add-Inventory 'Seriennummer (Service Tag)' $bios.SerialNumber
+foreach ($kind in @('LAN', 'WLAN')) {
+    $matching = @(if ($kind -eq 'LAN') { $lan } else { $wlan })
+    if (-not $matching.Count) { Add-Inventory "$kind MAC" 'Nicht ermittelbar' }
+    foreach ($adapter in $matching) {
+        $field = if ($matching.Count -eq 1) { "$kind MAC" } else { "$kind MAC - $($adapter.Name)" }
+        Add-Inventory $field ($adapter.MacAddress -replace ':', '-')
+    }
+}
+Add-Inventory 'CPU' @($sources['Win32_Processor'] | ForEach-Object { $_.Name })
+$installedRam = ($sources['Win32_PhysicalMemory'] | Measure-Object -Property Capacity -Sum).Sum
+$ram = if ($installedRam -gt 0) { '{0:N2} GiB' -f ($installedRam / 1GB) }
+    elseif ($cs.TotalPhysicalMemory) { '{0:N2} GiB (vom System gemeldet)' -f ($cs.TotalPhysicalMemory / 1GB) }
+    else { 'Nicht ermittelbar' }
+Add-Inventory 'RAM' $ram
+$disks = @($sources['Get-PhysicalDisk'] | Sort-Object DeviceId)
+if ($disks.Count) {
+    foreach ($disk in $disks) {
+        $label = 'Datenträger {0} ({1})' -f $disk.DeviceId, $disk.FriendlyName
+        $media = switch ([string]$disk.MediaType) {
+            'SSD' { 'SSD' }; '4' { 'SSD' }; 'HDD' { 'HDD' }; '3' { 'HDD' }
+            'SCM' { 'SCM' }; '5' { 'SCM' }; default { 'Unbekannt' }
+        }
+        $bus = if ([string]::IsNullOrWhiteSpace([string]$disk.BusType)) { 'Unbekannt' }
+            else { ([string]$disk.BusType).ToUpperInvariant() }
+        Add-Inventory "$label - Typ" ("{0} {1}" -f $bus, $media)
+        Add-Inventory "$label - Größe" (Format-Capacity $disk.Size)
+    }
+} elseif ($sources['Win32_DiskDrive'].Count) {
+    foreach ($disk in $sources['Win32_DiskDrive'] | Sort-Object Index) {
+        $label = 'Datenträger {0} ({1})' -f $disk.Index, $disk.Model
+        $bus = if ([string]::IsNullOrWhiteSpace([string]$disk.InterfaceType)) { 'Unbekannt' }
+            else { ([string]$disk.InterfaceType).ToUpperInvariant() }
+        Add-Inventory "$label - Typ" ("{0} Unbekannt" -f $bus)
+        Add-Inventory "$label - Größe" (Format-Capacity $disk.Size)
+    }
+} else {
+    Add-Inventory 'Festplattentyp' 'Nicht ermittelbar'
+    Add-Inventory 'Festplattengröße' 'Nicht ermittelbar'
+}
+$osText = if ($os) {
+    $release = if ($win.DisplayVersion) { $win.DisplayVersion } else { $win.ReleaseId }
+    $build = if ($null -ne $win.UBR) { '{0}.{1}' -f $os.BuildNumber, $win.UBR } else { $os.BuildNumber }
+    '{0}; {1}; Version {2}; Build {3}; {4}' -f $os.Caption, $release, $os.Version, $build, $os.OSArchitecture
+} else { 'Nicht ermittelbar' }
+Add-Inventory 'OS (+Version)' $osText
+
+# Bewusst begrenzte Auswahl: keine vollständige Auflistung von Umgebungsvariablen.
+$properties = [ordered]@{
+    'Win32_ComputerSystem' = @('Manufacturer','Model','Name','SystemFamily','SystemSKUNumber','TotalPhysicalMemory')
+    'Win32_ComputerSystemProduct' = @('Vendor','Name','Version','IdentifyingNumber','UUID','SKUNumber')
+    'Win32_BIOS' = @('Manufacturer','SerialNumber','SMBIOSBIOSVersion')
+    'Win32_SystemEnclosure' = @('Manufacturer','Model','SerialNumber','SMBIOSAssetTag','ChassisTypes')
+    'Win32_Processor' = @('DeviceID','Name','Manufacturer','NumberOfCores','NumberOfLogicalProcessors','MaxClockSpeed')
+    'Win32_PhysicalMemory' = @('DeviceLocator','Manufacturer','PartNumber','Capacity','Speed','ConfiguredClockSpeed','SMBIOSMemoryType')
+    'Win32_DiskDrive' = @('Index','Model','SerialNumber','MediaType','InterfaceType','Size')
+    'Get-PhysicalDisk' = @('DeviceId','FriendlyName','SerialNumber','MediaType','BusType','Size','SpindleSpeed')
+    'Win32_LogicalDisk' = @('DeviceID','DriveType','VolumeName','FileSystem','Size','FreeSpace')
+    'Get-NetAdapter -Physical' = @('Name','InterfaceDescription','Status','MacAddress','PermanentAddress','PhysicalMediaType','NdisPhysicalMedium','PnPDeviceID')
+    'Win32_NetworkAdapter' = @('Name','NetConnectionID','PhysicalAdapter','AdapterType','AdapterTypeID','MACAddress','PNPDeviceID')
+    'Win32_OperatingSystem' = @('Caption','Version','BuildNumber','OSArchitecture')
+    'Windows CurrentVersion' = @('ProductName','DisplayVersion','ReleaseId','CurrentBuild','UBR','EditionID')
+}
+$diagnostics = New-Object 'System.Collections.Generic.List[object]'
+foreach ($source in $properties.Keys) {
+    $index = 0
+    foreach ($item in $sources[$source]) {
+        # Virtuelle Adapter und Netzlaufwerke sind für die Gerätezuordnung nicht relevant.
+        if ($source -eq 'Win32_NetworkAdapter' -and -not $item.PhysicalAdapter) { continue }
+        if ($source -eq 'Win32_LogicalDisk' -and $item.DriveType -ne 3) { continue }
+        foreach ($property in $properties[$source]) {
+            $diagnostics.Add([pscustomobject][ordered]@{
+                Quelle = $source; Instanz = $index; Eigenschaft = $property; Wert = (Get-Text $item.$property)
+            })
+        }
+        $index++
+    }
+}
+$diagnostics.Add([pscustomobject][ordered]@{
+    Quelle = 'Umgebungsvariable'; Instanz = 0; Eigenschaft = 'COMPUTERNAME'; Wert = $env:COMPUTERNAME
+})
+
+foreach ($issue in $issues) { Write-Warning $issue }
+$rows = if ($Diagnose) { $diagnostics.ToArray() } else { $inventory.ToArray() }
+if ($ExportPath) { $rows | Export-Csv -LiteralPath $ExportPath -Delimiter ';' -NoTypeInformation -Encoding UTF8 }
+if ($CopyValue) {
+    $selected = @($inventory | Where-Object { $_.Feld -eq $CopyValue })
+    if ($selected.Count -ne 1) { throw "Unbekanntes Feld '$CopyValue'. Den Feldnamen aus der Inventartabelle verwenden." }
+    Set-Clipboard -Value $selected[0].Wert -ErrorAction Stop
+}
+if ($PassThru) { $rows }
+else { $rows | Format-Table -AutoSize -Wrap | Out-String -Width 240 | Write-Output }
